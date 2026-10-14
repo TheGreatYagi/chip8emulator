@@ -80,18 +80,19 @@ void execute(chip8 *sys) {
 
     // break nibble into categories
     switch(opcode) {
-        case 0x00:
+        case 0x00: {
             // system routines
             //printf("found opcode 0x00!\n");
             if (word == 0x00EE) {
                 printf("now returning from subroutine!\n");
                 ret(sys);
             }
-            if (word == 0x00e0) {
+            if (word == 0x00E0) {
                 printf("now clearing screen\n");
                 cls(sys);
             }
             break;
+        }
         case 0x10: {
             //Jump Routines
             //printf("found opcode 0x10!\n");
@@ -108,22 +109,35 @@ void execute(chip8 *sys) {
             call_nnn(sys, value);
             break;
         }
-        case 0x30:
+        case 0x30: {
             // Skip Equial (SE vX kk; pc+=2)
-            printf("found opcode 0x30!\n");
+            //printf("found opcode 0x30!\n");
+            uint8_t reg = ( word & 0x0F00) >> 8;
+            uint8_t bytes = (word & 0x00FF);
+            printf("Now checking if reg %#x contains value %#x\n", reg, bytes);
+            se_vX_kk(sys, reg,bytes);
             break;
-        case 0x40:
+        }
+        case 0x40: {
             // Skip Not Equial (SNE Vx kk; )
             printf("found opcode 0x40!\n");
+            uint8_t reg = (word & 0x0F00) >> 8;
+            uint8_t bytes = (word & 0x00FF);
+            sne_vX_kk(sys, reg, bytes);
             break;
-        case 0x50:
+        }
+        case 0x50: {
             // Skip Equal (SE Vx Vy)
-            printf("found opcode 0x50!\n");
+            // printf("found opcode 0x50!\n");
+            uint8_t reg_x = (word & 0x0F00) >> 8;
+            uint8_t reg_y = (word & 0x00F0) >> 4;
+            se_vX_vY(sys, reg_x, reg_y);
             break;
+        }
         case 0x60: {
             //printf("found opcode 0x60!\n");
             // uint8_t reg = (nibble & 0x0F00);
-            uint8_t reg = (high & 0x0F);
+            uint8_t reg = (high & 0x0F) ;
             printf("now loading %u to reg %d\n", low, reg);
             ld_kk(sys, reg, low);
             break;
@@ -135,51 +149,182 @@ void execute(chip8 *sys) {
             add_reg_kk(sys, (high & 0x0F), low);
             break;
         }
-        case 0x80:
+        case 0x80: {
             // Register Manipulation 
-            printf("found opcode 0x80!\n");
+            uint8_t mode = (word & 0x000F);
+            uint8_t reg_x = (word & 0x0F00) >> 8;
+            uint8_t reg_y = (word & 0x00F0) >> 4;
+            switch(mode) {
+                case 0: {
+                    // ld vX vY
+                    ld_vX_vY(sys, reg_x, reg_y);
+                    break;
+                }
+                case 1: {
+                    // OR vX vY
+                    or_vX_vY(sys, reg_x, reg_y);
+                    break;
+                }
+                case 2: {
+                    // AND vX vY
+                    and_vX_vY(sys, reg_x, reg_y);
+                    break;
+                }
+                case 3: {
+                    // XOR vX vY
+                    xor_vX_vY(sys, reg_x, reg_y);
+                    break;
+                }
+                case 4: {
+                    // ADD vX vY
+                    uint16_t reg16_x = reg_x;
+                    uint16_t reg16_y = reg_y;
+                    add_vX_vY(sys, reg16_x, reg16_y);
+                    break;
+                }
+                case 5: {
+                    // SUB vX vY, vF not borrow
+                    sub_vX_vY(sys, reg_x, reg_y);
+                    break;
+                }
+                case 6: {
+                    // vX = vX SHR 1
+                    shr_vX(sys, reg_x);
+                    break;
+                }
+                case 7: {
+                    // Vx = Vy - Vx, VF not borrow.
+                    subn_vX_vY(sys, reg_x, reg_y);
+                    break;
+                }
+                case 0xE: {
+                    //  Vx = Vx SHL 1.
+                    shl_vX(sys, reg_x);
+                    break;
+                }
+                default: {
+                    printf("found mode: %#x",mode);
+                    break;
+                }
+            }
+            //printf("found opcode 0x80!\n");
             break;
-        case 0x90:
+        }
+        case 0x90: {
             // SNE Vx Vy
-            printf("found opcode 0x90!\n");
+            //printf("found opcode 0x90!\n");
+            uint8_t reg_x = (word & 0x0F00) >> 8;
+            uint8_t reg_y = (word & 0x00F0) >> 4;
+            sne_vX_vY(sys, reg_x, reg_y);
             break;
+        }
         case 0xA0: {
             // Load to I (LD nnn (12bits/3bytes))
-            uint8_t bytes = (word & 0x0FFF);
+            uint16_t bytes = (word & 0x0FFF);
             printf("now loading %#x to I\n", bytes);
             ld_i_nnn(sys, bytes);
             break;
         }
-        case 0xB0:
+        case 0xB0: {
             // Jump nnn + v0 (JUMP 0 nnn)
-            printf("found opcode 0xB0!\n");
+            //printf("found opcode 0xB0!\n");
+            uint16_t bytes = (word & 0x0FFF);
+            jump_v0(sys, bytes);
             break;
-        case 0xC0:
+        }
+        case 0xC0: {
             // Generate Rand (RAND vX kk)
-            printf("found opcode 0xC0!\n");
+            //printf("found opcode 0xC0!\n");
+            printf("Creating random number and seeding with %#x\n",(word & 0x00FF));
+            rand_vX_kk(sys, (word & 0x0F00) >> 8, (word & 0x00FF));
             break;
+        }
         case 0xD0: {
             // Draw vX vY n ()
             //printf("found opcode 0xD0!\n");
-            uint8_t reg_x = (word & 0x0F00);
-            uint8_t reg_y = (word & 0x00F0);
+            uint8_t reg_x = (word & 0x0F00) >> 8;
+            uint8_t reg_y = (word & 0x00F0) >> 4;
             uint8_t bytes = (word & 0x000F);
             printf("now drawing at [%u,%u], pulling %#x bytes starting from addr %#x\n", reg_x, reg_y, bytes, sys->I); 
             draw(sys, reg_x, reg_y, bytes);
             break;
         }
-        case 0xE0:
+        case 0xE0: {
             // Skip instructions
-            printf("found opcode 0xE0!\n");
+            uint8_t mode = (word & 0x00FF);
+            //printf("found opcode 0xE0!\n");
+            switch(mode) {
+                case 0x9E: {
+                    skp_vX(sys, (word & 0x0F00) >> 8);
+                    break;
+                }
+                case 0xA1: {
+                    skpn_vX(sys, (word & 0x0F00) >> 8);
+                    break;
+                }
+                default: {
+                    printf("found malformed opcode %#x\n", word);
+                    break;
+                }
+            }
             break;
-        case 0xF0:
+        }
+        case 0xF0: {
             // Various sound, delay, and input instrucitons
-            printf("found opcode 0xF0!\n");
+            // printf("found opcode 0xF0!\n");
+            uint8_t mode = (word & 0x00FF);
+            //printf("found opcode 0xE0!\n");
+            uint8_t reg = (word & 0x0F00) >> 8;
+            switch(mode) {
+                case 0x07: {
+                    // ld vX = delay
+                    ld_vX_delay(sys, reg);
+                    break;
+                }
+                case 0x0A: {
+                    ld_vX_key(sys, reg);
+                    break;
+                }
+                case 0x15: {
+                    ld_delay_vX(sys, reg);
+                    break;
+                }
+                case 0x18: {
+                    ld_sound_vX(sys, reg);
+                    break;
+                }
+                case 0x1E: {
+                    add_I_vX(sys, reg);
+                    break;
+                }
+                case 0x29: {
+                    ld_f_vX(sys,reg);
+                    break;
+                }
+                case 0x33: {
+                    ld_b_vX(sys,reg);
+                    break;
+                }
+                case 0x55: {
+
+                    break;
+                }
+                case 0x65: {
+
+                    break;
+                }
+                default: {
+                    printf("found malformed opcode %#x\n", word);
+                    break;
+                }
+            }
             break;
-        default:
+        }
+        default: {
             //printf("couldn't find opcode\n");
-            printf("opcode: %#x\n",opcode);
+            printf("opcode not implemented: %#x\n",opcode);
             break;
+        }
     }
     
     // execute opcode
@@ -187,8 +332,6 @@ void execute(chip8 *sys) {
         exit(0);
     }
 
-    // increment pc forward to next instruction
-    // sys->pc+=2; //2 byte instructions
 }
 
 int load_rom(chip8 *sys, const char *filename) {
@@ -201,7 +344,7 @@ int load_rom(chip8 *sys, const char *filename) {
         return 0;
     }
     
-    // define buffer to hold data, then read file.
+    // define buffechip8 *sysr to hold data, then read file.
     // this is an issue if files are larger. 
     uint8_t data[3584];
     size_t dataRead = fread(data, sizeof(uint8_t), 3584, file);
